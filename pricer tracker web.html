@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon Price Parcer — Track Amazon Price Drops</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --border: #1e1e1e;
+    --accent: #ff6b2b;
+    --accent2: #ff9500;
+    --text: #f0ede8;
+    --muted: #666;
+    --green: #00c896;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    overflow-x: hidden;
+    cursor: default;
+  }
+
+  /* Grid noise texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,107,43,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,107,43,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ambient glow */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 600px;
+    background: radial-gradient(ellipse, rgba(255,107,43,0.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 32px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* NAV */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 10;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .nav-cta {
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    padding: 10px 22px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  }
+
+  .nav-cta:hover { background: var(--accent2); transform: translateY(-1px); }
+
+  /* HERO */
+  .hero {
+    padding: 100px 0 80px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,107,43,0.1);
+    border: 1px solid rgba(255,107,43,0.3);
+    padding: 6px 16px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 32px;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(48px, 8vw, 96px);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -3px;
+    margin-bottom: 28px;
+    animation: fadeDown 0.6s 0.1s ease both;
+  }
+
+  h1 .line1 { display: block; }
+  h1 .line2 { display: block; color: var(--accent); }
+  h1 .line3 { display: block; color: var(--muted); font-weight: 400; font-size: 0.55em; letter-spacing: -1px; margin-top: 8px; }
+
+  .hero-sub {
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 480px;
+    margin: 0 auto 48px;
+    line-height: 1.7;
+    font-weight: 300;
+    animation: fadeDown 0.6s 0.2s ease both;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    animation: fadeDown 0.6s 0.3s ease both;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    padding: 16px 36px;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    transition: all 0.2s;
+    clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+  }
+
+  .btn-primary:hover {
+    background: var(--accent2);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(255,107,43,0.4);
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 16px 28px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .stat {
+    padding: 40px 32px;
+    text-align: center;
+    border-right: 1px solid var(--border);
+  }
+
+  .stat:last-child { border-right: none; }
+
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -2px;
+    line-height: 1;
+    display: block;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 8px;
+    display: block;
+  }
+
+  /* HOW IT WORKS */
+  .section {
+    padding: 100px 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    max-width: 60px;
+    height: 1px;
+    background: var(--accent);
+    opacity: 0.4;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+    margin-bottom: 60px;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+
+  .step {
+    background: var(--surface);
+    padding: 48px 36px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+
+  .step:hover { background: #161616; }
+
+  .step::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+  }
+
+  .step:hover::before { transform: scaleX(1); }
+
+  .step-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 72px;
+    font-weight: 800;
+    color: var(--border);
+    line-height: 1;
+    margin-bottom: 24px;
+    transition: color 0.3s;
+  }
+
+  .step:hover .step-num { color: rgba(255,107,43,0.15); }
+
+  .step-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+    font-weight: 300;
+  }
+
+  /* PRICING */
+  .pricing {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    max-width: 800px;
+  }
+
+  .plan {
+    background: var(--surface);
+    padding: 48px 40px;
+    position: relative;
+  }
+
+  .plan.featured {
+    background: linear-gradient(135deg, #1a0f00, #150a00);
+    border: 1px solid rgba(255,107,43,0.3);
+  }
+
+  .plan-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    margin-bottom: 24px;
+  }
+
+  .plan-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .plan-price {
+    font-family: 'Syne', sans-serif;
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .plan-period {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  .plan-features {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 36px;
+  }
+
+  .plan-features li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .plan-features li::before {
+    content: '→';
+    color: var(--accent);
+    font-size: 14px;
+  }
+
+  .plan-features li.active { color: var(--text); }
+
+  /* NOTIFICATION DEMO */
+  .demo-section {
+    padding: 100px 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .demo-phone {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+    max-width: 400px;
+    position: relative;
+  }
+
+  .demo-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .demo-avatar {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .demo-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .demo-status {
+    font-size: 11px;
+    color: var(--green);
+  }
+
+  .msg {
+    background: #1a1a1a;
+    border-left: 2px solid var(--accent);
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .msg-price-old {
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+
+  .msg-price-new {
+    color: var(--green);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+  }
+
+  .msg-drop {
+    display: inline-block;
+    background: rgba(0,200,150,0.1);
+    color: var(--green);
+    padding: 2px 8px;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .footer-copy {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+  }
+
+  .footer-links a {
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--accent); }
+
+  /* SCROLL REVEAL */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* TICKER */
+  .ticker-wrap {
+    overflow: hidden;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+    background: var(--surface);
+    position: relative;
+    z-index: 1;
+  }
+
+  .ticker {
+    display: flex;
+    gap: 60px;
+    animation: ticker 20s linear infinite;
+    white-space: nowrap;
+  }
+
+  .ticker-item {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .ticker-item .drop { color: var(--green); font-weight: 500; }
+
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  @media (max-width: 768px) {
+    nav { padding: 20px; }
+    .steps { grid-template-columns: 1fr; }
+    .pricing { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: 1fr; }
+    .stat { border-right: none; border-bottom: 1px solid var(--border); }
+    h1 { letter-spacing: -2px; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">amazon<span>.</span>parcer</div>
+  <a href="https://t.me/amazonpriceparcerbot" class="nav-cta" target="_blank">Try Free →</a>
+</nav>
+
+<!-- HERO -->
+<div class="container">
+  <section class="hero">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Bot is live — 0 cost to start
+    </div>
+    <h1>
+      <span class="line1">Never</span>
+      <span class="line2">overpay</span>
+      <span class="line3">on Amazon again.</span>
+    </h1>
+    <p class="hero-sub">
+      Add any Amazon product link. Get a Telegram alert the moment the price drops. Free for up to 5 products.
+    </p>
+    <div class="hero-actions">
+      <a href="https://t.me/amazonpriceparcerbot" class="btn-primary" target="_blank">
+        🤖 Start Tracking Free
+      </a>
+      <a href="#how" class="btn-ghost">See how it works ↓</a>
+    </div>
+  </section>
+</div>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <div class="ticker-item">Sony WH-1000XM5 <span class="drop">↓ 23%</span></div>
+    <div class="ticker-item">Apple AirPods Pro <span class="drop">↓ 18%</span></div>
+    <div class="ticker-item">Kindle Paperwhite <span class="drop">↓ 35%</span></div>
+    <div class="ticker-item">Samsung Galaxy S24 <span class="drop">↓ 12%</span></div>
+    <div class="ticker-item">Dyson V15 <span class="drop">↓ 27%</span></div>
+    <div class="ticker-item">Lego Technic <span class="drop">↓ 40%</span></div>
+    <div class="ticker-item">Instant Pot Duo <span class="drop">↓ 22%</span></div>
+    <!-- duplicate for seamless loop -->
+    <div class="ticker-item">Sony WH-1000XM5 <span class="drop">↓ 23%</span></div>
+    <div class="ticker-item">Apple AirPods Pro <span class="drop">↓ 18%</span></div>
+    <div class="ticker-item">Kindle Paperwhite <span class="drop">↓ 35%</span></div>
+    <div class="ticker-item">Samsung Galaxy S24 <span class="drop">↓ 12%</span></div>
+    <div class="ticker-item">Dyson V15 <span class="drop">↓ 27%</span></div>
+    <div class="ticker-item">Lego Technic <span class="drop">↓ 40%</span></div>
+    <div class="ticker-item">Instant Pot Duo <span class="drop">↓ 22%</span></div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat">
+    <span class="stat-num">6h</span>
+    <span class="stat-label">Price check interval</span>
+  </div>
+  <div class="stat">
+    <span class="stat-num">15–40%</span>
+    <span class="stat-label">Average savings</span>
+  </div>
+  <div class="stat">
+    <span class="stat-num">$0</span>
+    <span class="stat-label">To get started</span>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="container">
+  <section class="section reveal" id="how">
+    <div class="section-label">How it works</div>
+    <h2 class="section-title">Three steps.<br>Zero effort.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-title">Add a product</div>
+        <p class="step-desc">Send <code>/add</code> followed by any Amazon product URL. The bot extracts the ASIN and starts tracking immediately.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-title">We watch prices</div>
+        <p class="step-desc">Our bot checks prices every 6 hours using residential proxies — the same price you'd see in your browser.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-title">You get alerted</div>
+        <p class="step-desc">The moment a price drops, you get an instant Telegram notification with the old price, new price, and a direct buy link.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEMO -->
+  <section class="demo-section reveal">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;">
+      <div>
+        <div class="section-label">Live demo</div>
+        <h2 class="section-title">What you'll<br>receive.</h2>
+        <p style="font-size:14px;color:var(--muted);line-height:1.8;font-weight:300;">
+          Instant Telegram message the moment the price drops. Includes the exact savings percentage and a direct link to buy before the price goes back up.
+        </p>
+      </div>
+      <div>
+        <div class="demo-phone">
+          <div class="demo-header">
+            <div class="demo-avatar">🤖</div>
+            <div>
+              <div class="demo-name">Amazon Price Parcer</div>
+              <div class="demo-status">● active</div>
+            </div>
+          </div>
+          <div class="msg">
+            🔔 <strong>Price Drop Alert!</strong><br><br>
+            📦 Sony WH-1000XM5 Wireless...<br><br>
+            <span class="msg-price-old">$399.99</span><br>
+            <span class="msg-price-new">$279.99</span><br>
+            <span class="msg-drop">↓ -30% · Save $120.00</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:8px;">just now · ✓✓</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="section reveal">
+    <div class="section-label">Pricing</div>
+    <h2 class="section-title">Simple.<br>Fair.</h2>
+    <div class="pricing">
+      <div class="plan">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">$0</div>
+        <div class="plan-period">forever</div>
+        <ul class="plan-features">
+          <li class="active">Up to 5 products</li>
+          <li class="active">Price checks every 6h</li>
+          <li class="active">Instant Telegram alerts</li>
+          <li>Unlimited products</li>
+        </ul>
+        <a href="https://t.me/amazonpriceparcerbot" class="btn-ghost" target="_blank" style="display:inline-block;padding:12px 24px;font-size:13px;">Start Free →</a>
+      </div>
+      <div class="plan featured">
+        <div class="plan-badge">Most popular</div>
+        <div class="plan-name">Premium</div>
+        <div class="plan-price">$3</div>
+        <div class="plan-period">per month · paid in crypto</div>
+        <ul class="plan-features">
+          <li class="active">Up to 50 products</li>
+          <li class="active">Price checks every 6h</li>
+          <li class="active">Instant Telegram alerts</li>
+          <li class="active">Pay with USDT / TON / BTC</li>
+        </ul>
+        <a href="https://t.me/amazonpriceparcerbot" class="btn-primary" target="_blank" style="display:inline-flex;padding:12px 24px;font-size:13px;">Upgrade Now →</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- FINAL CTA -->
+<div style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);position:relative;z-index:1;">
+  <div class="container">
+    <div style="padding:100px 0;text-align:center;" class="reveal">
+      <h2 style="font-family:'Syne',sans-serif;font-size:clamp(36px,6vw,72px);font-weight:800;letter-spacing:-3px;line-height:1;margin-bottom:24px;">
+        Start saving<br><span style="color:var(--accent);">right now.</span>
+      </h2>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:40px;">Free. No email. No signup. Just Telegram.</p>
+      <a href="https://t.me/amazonpriceparcerbot" class="btn-primary" target="_blank" style="font-size:16px;padding:20px 48px;">
+        🤖 Open in Telegram
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-copy">© 2025 Amazon Price Parcer. Not affiliated with Amazon.</div>
+  <div class="footer-links">
+    <a href="https://t.me/amazonpriceparcerbot" target="_blank">Telegram Bot</a>
+    <a href="mailto:support@example.com">Support</a>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(r => observer.observe(r));
+
+  // Animated counters
+  function animateCounter(el, target, suffix = '') {
+    let start = 0;
+    const duration = 1500;
+    const step = (timestamp) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.floor(eased * target) + suffix;
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+</script>
+</body>
+</html>
